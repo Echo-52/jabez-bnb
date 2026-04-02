@@ -22,7 +22,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100dvh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 .app{display:flex;flex-direction:column;min-height:100dvh}
-.page{display:none;flex:1;padding-bottom:calc(var(--bottom-h)+16px)}.page.active{display:block}
+.page{display:none;flex:1;padding-bottom:calc(var(--bottom-h)+100px)}.page.active{display:block}
 .container{max-width:640px;margin:0 auto;padding:16px}
 
 /* nav */
@@ -192,6 +192,12 @@ html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(
 </button>
 <div id="voiceWave" class="voice-wave" style="display:none"><span></span><span></span><span></span><span></span><span></span></div>
 <div class="voice-text" id="voiceStatus">點擊麥克風，說出訂房資訊</div>
+<div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-radius:var(--radius-xs);text-align:left;font-size:.75rem;color:var(--text3);line-height:1.7">
+💡 <b style="color:var(--text2)">語音範例</b><br>
+「<span style="color:var(--text)">張小姐 0912345678 四月五號到七號 雙人房</span>」<br>
+「<span style="color:var(--text)">林先生 稻禾 五月一號到三號 加一床</span>」<br>
+可任意組合，順序不拘，系統會自動辨識
+</div>
 <div class="voice-result" id="voiceResult" style="display:none"></div>
 </div>
 <div style="text-align:center;color:var(--text3);font-size:.78rem;margin:-8px 0 14px">── 或手動填寫 ──</div>
@@ -436,17 +442,89 @@ recog.onresult=function(ev){var t='';for(var i=0;i<ev.results.length;i++)t+=ev.r
 recog.onerror=function(ev){var m={'no-speech':'未偵測到語音','audio-capture':'找不到麥克風','not-allowed':'權限被拒','network':'網路問題'}[ev.error]||'辨識錯誤';$('voiceStatus').textContent=m;stopV()};
 recog.onend=function(){stopV()};recog.start()}
 function stopV(){if(recog)try{recog.stop()}catch(e){}isRec=false;$('voiceBtn').classList.remove('recording');$('voiceWave').style.display='none';$('voiceStatus').textContent='點擊麥克風，說出訂房資訊'}
-function parseV(text){var res={};var nm=text.match(/^([^\d,，、\s]{2,4})/);if(nm)res.name=nm[1];var ph=text.match(/(0\d{8,10}|\d{8,11})/);if(ph)res.phone=ph[1];
-var rng=text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[號日]?\s*[到至]\s*(\d{1,2})\s*[號日]/);if(rng){var yr=new Date().getFullYear(),mo=rng[1].padStart(2,'0');res.checkIn=yr+'-'+mo+'-'+rng[2].padStart(2,'0');res.checkOut=yr+'-'+mo+'-'+rng[3].padStart(2,'0')}else{var dms=text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[號日]/g);if(dms){var yr=new Date().getFullYear();var pd=dms.map(function(d){var mm=d.match(/(\d{1,2})\s*月\s*(\d{1,2})/);return yr+'-'+mm[1].padStart(2,'0')+'-'+mm[2].padStart(2,'0')});if(pd[0])res.checkIn=pd[0];if(pd[1])res.checkOut=pd[1]}}
-var bld=$('fBuilding').value,bR=R()[bld]||[];for(var i=0;i<bR.length;i++){if(text.indexOf(bR[i].name)!==-1){res.room=bR[i].name;break}}
-if(!res.room){var ts=[{k:'雙人',c:2},{k:'二人',c:2},{k:'四人',c:4},{k:'4人',c:4},{k:'六人',c:6},{k:'八人',c:8},{k:'8人',c:8}];for(var j=0;j<ts.length;j++){if(text.indexOf(ts[j].k)!==-1){var m=bR.find(function(r){return r.capacity===ts[j].c});if(m)res.room=m.name;break}}}
-var bd=text.match(/加\s*(\d)\s*床/);if(bd)res.extraBeds=+bd[1];
-if(res.name)$('fName').value=res.name;if(res.phone)$('fPhone').value=res.phone;
+function parseV(text){
+var res={};
+// Normalize text
+var t=text.replace(/\s+/g,' ').trim();
+
+// === 姓名：支援「張小姐」「林先生」「王太太」「陳媽媽」「李爸爸」或一般2-4字中文名 ===
+var titleMatch=t.match(/([\u4e00-\u9fff])(小姐|先生|太太|媽媽|爸爸|女士|大哥|大姊|姊姊|哥哥|阿姨)/);
+if(titleMatch) res.name=titleMatch[1]+titleMatch[2];
+if(!res.name){var fullName=t.match(/([\u4e00-\u9fff]{2,4})(?=\s|,|，|[0-9]|$)/);if(fullName)res.name=fullName[1]}
+
+// === 電話：支援各種口語格式 ===
+var phoneClean=t.replace(/[\s\-\.]/g,'');
+var ph=phoneClean.match(/0[29]\d{7,8}|09\d{8}/);
+if(ph)res.phone=ph[0];
+if(!res.phone){var digits=t.replace(/[^\d]/g,'');if(digits.length>=9&&digits.length<=11)res.phone=digits}
+
+// === 日期解析（更智能）===
+// 格式1：X月Y號到Z號
+var rng=t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[號日號]?\s*[到至~\-]\s*(\d{1,2})\s*[號日號]?/);
+if(rng){var yr=new Date().getFullYear(),mo=rng[1].padStart(2,'0');
+res.checkIn=yr+'-'+mo+'-'+rng[2].padStart(2,'0');res.checkOut=yr+'-'+mo+'-'+rng[3].padStart(2,'0')}
+// 格式2：X月Y號到X月Z號（跨月）
+if(!res.checkIn){var cross=t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[號日]?\s*[到至~\-]\s*(\d{1,2})\s*月\s*(\d{1,2})\s*[號日]?/);
+if(cross){var yr=new Date().getFullYear();res.checkIn=yr+'-'+cross[1].padStart(2,'0')+'-'+cross[2].padStart(2,'0');res.checkOut=yr+'-'+cross[3].padStart(2,'0')+'-'+cross[4].padStart(2,'0')}}
+// 格式3：兩個獨立日期
+if(!res.checkIn){var dms=t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[號日]/g);
+if(dms&&dms.length>=2){var yr=new Date().getFullYear();var pd=dms.map(function(d){var mm=d.match(/(\d{1,2})\s*月\s*(\d{1,2})/);return yr+'-'+mm[1].padStart(2,'0')+'-'+mm[2].padStart(2,'0')});res.checkIn=pd[0];res.checkOut=pd[1]}}
+// 格式4：住X晚（從提到的日期算起）
+if(res.checkIn&&!res.checkOut){var nights=t.match(/住\s*(\d+)\s*[晚天]/);
+if(nights){var ci=new Date(res.checkIn);ci.setDate(ci.getDate()+parseInt(nights[1]));res.checkOut=ci.toISOString().slice(0,10)}}
+
+// === 房間名稱直接比對 ===
+var bld=$('fBuilding').value,bR=R()[bld]||[];
+for(var i=0;i<bR.length;i++){if(t.indexOf(bR[i].name)!==-1){res.room=bR[i].name;break}}
+
+// === 房型關鍵字比對（更多口語說法）===
+if(!res.room){
+var typeMap=[
+{keys:['雙人','二人','2人','兩人','雙人房','二人房'],c:2},
+{keys:['四人','4人','四人房','家庭房'],c:4},
+{keys:['六人','6人','六人房'],c:6},
+{keys:['八人','8人','八人房','大房'],c:8},
+{keys:['包棟','整棟'],c:20}
+];
+for(var j=0;j<typeMap.length;j++){
+for(var kk=0;kk<typeMap[j].keys.length;kk++){
+if(t.indexOf(typeMap[j].keys[kk])!==-1){var m=bR.find(function(r){return r.capacity===typeMap[j].c});if(m)res.room=m.name;break}}if(res.room)break}}
+
+// === 館別切換 ===
+if(t.indexOf('一館')!==-1)$('fBuilding').value='一館';
+else if(t.indexOf('二館')!==-1)$('fBuilding').value='二館';
+else if(t.indexOf('旭山')!==-1)$('fBuilding').value='旭山館';
+else if(t.indexOf('嶼田')!==-1)$('fBuilding').value='嶼田館';
+var bldChanged=$('fBuilding').value!==bld;
+if(bldChanged){updateRoomOpts();togglePkgDiscount();bR=R()[$('fBuilding').value]||[];
+// Re-match room after building change
+if(!res.room){for(var i2=0;i2<bR.length;i2++){if(t.indexOf(bR[i2].name)!==-1){res.room=bR[i2].name;break}}}}
+
+// === 加床 ===
+var bd=t.match(/加\s*(\d)\s*床/);if(bd)res.extraBeds=+bd[1];
+
+// === 人數 ===
+var ppl=t.match(/(\d+)\s*[個位名]\s*(大人|成人|小孩|兒童|人)/);
+
+// === 填入表單 ===
+if(res.name)$('fName').value=res.name;
+if(res.phone)$('fPhone').value=res.phone;
 if(res.checkIn&&res.checkOut){$('fCheckIn').value=res.checkIn;$('fCheckOut').value=res.checkOut;$('fDateDisplay').textContent=res.checkIn+' → '+res.checkOut;$('fDateDisplay').style.color='var(--text)'}
 if(res.room){var sel=$('fRoom');for(var k=0;k<sel.options.length;k++){if(sel.options[k].value===res.room){sel.selectedIndex=k;break}}}
-if(res.extraBeds!==undefined)$('fExtraBed').value=res.extraBeds;calcPreview();
-var pa=[];if(res.name)pa.push('姓名');if(res.phone)pa.push('電話');if(res.checkIn)pa.push('日期');if(res.room)pa.push('房間');
-$('voiceResult').innerHTML='<div style="color:var(--text3);font-size:.78rem;margin-bottom:6px">🎙️「'+text+'」</div>'+(pa.length>0?'<div style="color:var(--success);font-weight:500">✓ '+pa.join('、')+'</div>':'<div style="color:var(--warning)">⚠ 無法辨識</div>');showToast(pa.length>0?'已辨識 '+pa.length+' 個欄位':'請手動填寫')}
+if(res.extraBeds!==undefined)$('fExtraBed').value=res.extraBeds;
+calcPreview();
+
+// === 結果顯示 ===
+var pa=[];
+if(res.name)pa.push('姓名: '+res.name);
+if(res.phone)pa.push('電話: '+res.phone);
+if(res.checkIn)pa.push('入住: '+res.checkIn);
+if(res.checkOut)pa.push('退房: '+res.checkOut);
+if(res.room)pa.push('房間: '+res.room);
+if(res.extraBeds)pa.push('加床: '+res.extraBeds);
+$('voiceResult').innerHTML='<div style="color:var(--text3);font-size:.78rem;margin-bottom:6px">🎙️「'+text+'」</div>'+(pa.length>0?'<div style="color:var(--success);font-weight:500">✓ 已辨識 '+pa.length+' 個欄位</div><div style="font-size:.8rem;color:var(--text2);margin-top:4px">'+pa.join(' ｜ ')+'</div>':'<div style="color:var(--warning)">⚠ 無法辨識，請手動輸入或再試一次</div>');
+showToast(pa.length>0?'已辨識 '+pa.length+' 個欄位':'請手動填寫')
+}
 
 // === LIST ===
 async function loadList(){try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings;renderList(r.bookings)}}catch(e){$('bookingList').innerHTML='<div class="page-loading">載入失敗</div>'}}
