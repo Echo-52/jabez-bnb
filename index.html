@@ -382,7 +382,8 @@ var grid=$('calGrid'),days=['日','一','二','三','四','五','六'];
 var html=days.map(function(d){return'<div class="cal-day-header">'+d+'</div>'}).join('');
 var fd=new Date(calY,calM,1).getDay(),dim=new Date(calY,calM+1,0).getDate(),today=new Date();
 // build per-building per-date counts
-var bd={};BLDS.forEach(function(bld,bi){var list=cache[bld];if(!Array.isArray(list))return;var rooms=R()[bld]||[];var total=rooms.length;list.forEach(function(b){var ci=new Date(b['入住日期']),co=new Date(b['退房日期']),c=new Date(ci);while(c<co){var k=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(!bd[k])bd[k]={};if(!bd[k][bi])bd[k][bi]=0;bd[k][bi]++;c.setDate(c.getDate()+1)}})});
+function parseLocalDate(s){if(!s)return new Date(NaN);var p=String(s).substring(0,10).split('-');return new Date(+p[0],+p[1]-1,+p[2])}
+var bd={};BLDS.forEach(function(bld,bi){var list=cache[bld];if(!Array.isArray(list))return;var rooms=R()[bld]||[];var total=rooms.length;list.forEach(function(b){var ci=parseLocalDate(b['入住日期']),co=parseLocalDate(b['退房日期']);if(isNaN(ci)||isNaN(co))return;var c=new Date(ci);while(c<co){var k=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(!bd[k])bd[k]={};if(!bd[k][bi])bd[k][bi]=0;bd[k][bi]++;c.setDate(c.getDate()+1)}})});
 for(var i=0;i<fd;i++)html+='<div class="cal-day empty"></div>';
 for(var d=1;d<=dim;d++){var dObj=new Date(calY,calM,d),dow=dObj.getDay(),dk=calY+'-'+String(calM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
 var cls='cal-day';if(dow===6)cls+=' saturday';if(dow===0)cls+=' sunday';if(today.getFullYear()===calY&&today.getMonth()===calM&&today.getDate()===d)cls+=' today';if(selDate===dk)cls+=' selected';
@@ -391,7 +392,7 @@ html+='<div class="'+cls+'" onclick="selDay(\''+dk+'\')">'+d+(dots?'<div class="
 grid.innerHTML=html;if(selDate)showDay(selDate);else $('dayDetail').style.display='none'}
 function selDay(dk){selDate=dk;document.querySelectorAll('.cal-day').forEach(function(el){el.classList.remove('selected')});event.currentTarget.classList.add('selected');showDay(dk)}
 function showDay(dk){$('dayDetail').style.display='block';var p=dk.split('-'),dObj=new Date(+p[0],+p[1]-1,+p[2]),dn=['日','一','二','三','四','五','六'];$('dayDetailTitle').textContent=(+p[1])+'/'+(+p[2])+'（'+dn[dObj.getDay()]+'）';var rooms=R(),html='';
-BLDS.forEach(function(bld,bi){var rl=rooms[bld]||[];html+='<div class="room-building-section"><div class="room-building-title '+BRBT[bi]+'">'+bld+'</div>';rl.forEach(function(room){var bl=cache[bld]||[],bk=null;for(var j=0;j<bl.length;j++){var b=bl[j],ci=new Date(b['入住日期']),co=new Date(b['退房日期']),ch=new Date(dk);if(ch>=ci&&ch<co&&b['房間名稱']===room.name){bk=b;break}}
+BLDS.forEach(function(bld,bi){var rl=rooms[bld]||[];html+='<div class="room-building-section"><div class="room-building-title '+BRBT[bi]+'">'+bld+'</div>';rl.forEach(function(room){var bl=cache[bld]||[],bk=null;for(var j=0;j<bl.length;j++){var b=bl[j],ci=parseLocalDate(b['入住日期']),co=parseLocalDate(b['退房日期']),ch=parseLocalDate(dk);if(!isNaN(ci)&&!isNaN(co)&&ch>=ci&&ch<co&&b['房間名稱']===room.name){bk=b;break}}
 if(bk){html+='<div class="room-status-item occupied" data-bld="'+bld+'" data-oid="'+bk['訂單編號']+'"><div><div class="room-name">'+room.name+'</div><div class="room-capacity">'+room.capacity+'人</div></div><div class="room-guest"><div>'+bk['姓名']+'</div><div style="font-size:.7rem;color:var(--text3)">'+bk['入住日期']+'~'+bk['退房日期']+'</div></div><span class="status-badge occupied">已訂</span></div>'}else{html+='<div class="room-status-item available"><div><div class="room-name">'+room.name+'</div><div class="room-capacity">'+room.capacity+'人'+(room.isPackage?'（包棟）':'')+'</div></div><span class="status-badge available">空房</span></div>'}});html+='</div>'});
 $('roomStatusGrid').innerHTML=html;
 $('roomStatusGrid').querySelectorAll('.occupied').forEach(function(el){el.addEventListener('click',function(){openEdit(el.dataset.bld,el.dataset.oid)})})}
@@ -532,7 +533,7 @@ showToast(pa.length>0?'已辨識 '+pa.length+' 個欄位':'請手動填寫')
 
 // === LIST ===
 async function loadList(){try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings;renderList(r.bookings)}}catch(e){$('bookingList').innerHTML='<div class="page-loading">載入失敗</div>'}}
-function renderList(bks){var c=$('bookingList'),items=[];Object.entries(bks).forEach(function(e){var bld=e[0],list=e[1];if(!Array.isArray(list))return;list.forEach(function(b){items.push(Object.assign({},b,{building:bld}))})});items.sort(function(a,b){return new Date(b['入住日期'])-new Date(a['入住日期'])});if(!items.length){c.innerHTML='<div class="page-loading" style="color:var(--text3)">尚無訂單</div>';return}
+function renderList(bks){var c=$('bookingList'),items=[];Object.entries(bks).forEach(function(e){var bld=e[0],list=e[1];if(!Array.isArray(list))return;list.forEach(function(b){items.push(Object.assign({},b,{building:bld}))})});items.sort(function(a,b){return parseLocalDate(b['入住日期'])-parseLocalDate(a['入住日期'])});if(!items.length){c.innerHTML='<div class="page-loading" style="color:var(--text3)">尚無訂單</div>';return}
 c.innerHTML=items.map(function(b,idx){
 var name=b['姓名']||'—';
 var depStat=b['訂金狀態']||'未收';
