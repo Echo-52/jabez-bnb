@@ -338,6 +338,8 @@ var dpY,dpM,dpStart=null,dpEnd=null,dpStep=0;
 var BLDS=['一館','二館','旭山館','嶼田館'];
 var BCLS=['b1','b2','b3','b4'];
 var BRBT=['rbt-1','rbt-2','rbt-3','rbt-4'];
+var lastFetch=0,CACHE_TTL=30000; // 快取 30 秒
+var isFetching=false;
 
 // === defaults ===
 function defRooms(){return{'一館':[{name:'稻禾',capacity:2,weekdayPrice:2800,saturdayPrice:3800,maxExtraBeds:1},{name:'風荷連理',capacity:2,weekdayPrice:2800,saturdayPrice:3800,maxExtraBeds:1},{name:'鷺田',capacity:4,weekdayPrice:3800,saturdayPrice:4800,maxExtraBeds:2},{name:'新月晨光',capacity:4,weekdayPrice:3800,saturdayPrice:4800,maxExtraBeds:2},{name:'棲霞',capacity:6,weekdayPrice:5800,saturdayPrice:6800,maxExtraBeds:2},{name:'橫塘凌波',capacity:8,weekdayPrice:7800,saturdayPrice:8800,maxExtraBeds:3}],'二館':[{name:'隱江',capacity:2,weekdayPrice:2800,saturdayPrice:3800,maxExtraBeds:1},{name:'綠波',capacity:2,weekdayPrice:2800,saturdayPrice:3800,maxExtraBeds:1},{name:'嬋娟月',capacity:4,weekdayPrice:3800,saturdayPrice:4800,maxExtraBeds:2},{name:'天接水',capacity:4,weekdayPrice:3800,saturdayPrice:4800,maxExtraBeds:2},{name:'天星小榭',capacity:8,weekdayPrice:7800,saturdayPrice:8800,maxExtraBeds:3},{name:'長安街晚',capacity:8,weekdayPrice:7800,saturdayPrice:8800,maxExtraBeds:3}],'旭山館':[{name:'旭山館（包棟）',capacity:20,weekdayPrice:0,saturdayPrice:0,maxExtraBeds:0,isPackage:true}],'嶼田館':[{name:'嶼田館（包棟）',capacity:20,weekdayPrice:0,saturdayPrice:0,maxExtraBeds:0,isPackage:true}]}}
@@ -376,20 +378,47 @@ function lReport(y,m){var yn=+y,mn=+m,ms=new Date(yn,mn-1,1),me=new Date(yn,mn,1
 
 // === AUTH ===
 async function doLogin(){var em=$('loginEmail').value.trim().toLowerCase();if(!em){showToast('請輸入Email');return}$('loginBtn').disabled=true;var r=await api('auth',{email:em});$('loginBtn').disabled=false;if(r.success&&r.authorized){currentUser=em;localStorage.setItem('jbu',em);enter()}else{$('loginError').style.display='block';$('loginError').textContent='帳號未授權'}}
-function enter(){$('loginPage').style.display='none';$('mainApp').style.display='flex';$('userEmail').textContent=currentUser;$('userAvatar').textContent=currentUser[0].toUpperCase();loadS().then(function(){initCal();updateRoomOpts();togglePkgDiscount()})}
+function enter(){$('loginPage').style.display='none';$('mainApp').style.display='flex';$('userEmail').textContent=currentUser;$('userAvatar').textContent=currentUser[0].toUpperCase();
+  // 登入後立即載入所有資料
+  loadS().then(function(){updateRoomOpts();togglePkgDiscount();initCal();
+    fetchAllData(true).then(function(){renderCalFromCache()})
+  })}
 function logout(){currentUser='';localStorage.removeItem('jbu');$('loginPage').style.display='flex';$('mainApp').style.display='none'}
 (function(){var s=localStorage.getItem('jbu');if(s){currentUser=s;enter()}})();
 async function loadS(){try{var r=await api('getSettings');if(r.success){delete r.success;S=r;if(!S.rooms)S=null}}catch(e){S=null}}
 
 // === NAV ===
-function switchPage(id,btn){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});$(id).classList.add('active');document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});if(btn)btn.classList.add('active');if(id==='pageCal')refreshCal();if(id==='pageList')loadList();if(id==='pageReport')initRep();if(id==='pageSettings')loadSetUI()}
+// 集中載入資料，帶快取
+async function fetchAllData(force){
+  var now=Date.now();
+  if(!force&&lastFetch&&(now-lastFetch<CACHE_TTL)&&Object.keys(cache).length>0) return;
+  if(isFetching) return;
+  isFetching=true;
+  try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings||{};lastFetch=Date.now()}}catch(e){}
+  isFetching=false;
+}
+function switchPage(id,btn){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  $(id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
+  if(btn)btn.classList.add('active');
+  // 用快取立即渲染，再背景更新
+  if(id==='pageCal'){renderCalFromCache();fetchAllData().then(function(){renderCalFromCache()})}
+  if(id==='pageList'){renderList(cache);fetchAllData().then(function(){renderList(cache)})}
+  if(id==='pageReport')initRep();
+  if(id==='pageSettings')loadSetUI();
+}
 
 // === CAL ===
 function parseLocalDate(s){if(!s)return new Date(NaN);var p=String(s).substring(0,10).split('-');return new Date(+p[0],+p[1]-1,+p[2])}
 function initCal(){var n=new Date();calY=n.getFullYear();calM=n.getMonth();selDate=null;renderCal()}
 function calPrev(){calM--;if(calM<0){calM=11;calY--}selDate=null;renderCal()}
 function calNext(){calM++;if(calM>11){calM=0;calY++}selDate=null;renderCal()}
-async function renderCal(){$('calLabel').textContent=calY+'年'+(calM+1)+'月';var ms=calY+'-'+String(calM+1).padStart(2,'0');try{var r=await api('getAllBookings',{month:ms});if(r&&r.success)cache=r.bookings||{};else console.error('getAllBookings failed:',r)}catch(e){console.error('renderCal error:',e)}
+async function renderCal(){
+  await fetchAllData(true);
+  renderCalFromCache();
+}
+function renderCalFromCache(){$('calLabel').textContent=calY+'年'+(calM+1)+'月';
 var grid=$('calGrid'),days=['日','一','二','三','四','五','六'];
 var html=days.map(function(d){return'<div class="cal-day-header">'+d+'</div>'}).join('');
 var fd=new Date(calY,calM,1).getDay(),dim=new Date(calY,calM+1,0).getDate(),today=new Date();
@@ -445,7 +474,7 @@ d+='</div>';$('priceDetail').innerHTML=d;$('priceTotal').textContent='$'+fin.toL
 async function submitBooking(ev){ev.preventDefault();var btn=$('submitBtn');btn.disabled=true;btn.innerHTML='<span class="loading-spinner"></span>';
 var data={building:$('fBuilding').value,roomName:$('fRoom').value,guestName:$('fName').value,phone:$('fPhone').value,checkIn:$('fCheckIn').value,checkOut:$('fCheckOut').value,extraBeds:+$('fExtraBed').value||0,depositStatus:$('fDeposit').value,notes:$('fNotes').value,discountType:$('fDiscount').value||'',customPrice:+$('fCustomPrice').value||0};
 if(!data.checkIn||!data.checkOut){showToast('請選擇日期');btn.disabled=false;btn.textContent='確認送出';return false}
-try{var r=await api('addBooking',{data:JSON.stringify(data)});if(r.success){showToast('訂單已新增！');$('bookingForm').reset();$('pricePreview').style.display='none';$('fDateDisplay').textContent='點擊選擇日期';$('fDateDisplay').style.color='var(--text3)';updateRoomOpts();togglePkgDiscount()}else showToast('失敗：'+(r.error||''))}catch(ex){showToast('錯誤')}
+try{var r=await api('addBooking',{data:JSON.stringify(data)});if(r.success){showToast('訂單已新增！');$('bookingForm').reset();$('pricePreview').style.display='none';$('fDateDisplay').textContent='點擊選擇日期';$('fDateDisplay').style.color='var(--text3)';updateRoomOpts();togglePkgDiscount();lastFetch=0;fetchAllData(true)}else showToast('失敗：'+(r.error||''))}catch(ex){showToast('錯誤')}
 btn.disabled=false;btn.textContent='確認送出';return false}
 
 // === VOICE ===
@@ -544,7 +573,11 @@ showToast(pa.length>0?'已辨識 '+pa.length+' 個欄位':'請手動填寫')
 }
 
 // === LIST ===
-async function loadList(){try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings||{};renderList(r.bookings||{})}else{$('bookingList').innerHTML='<div class="page-loading" style="color:var(--danger)">載入失敗：'+(r.error||'未知錯誤')+'</div>'}}catch(e){$('bookingList').innerHTML='<div class="page-loading" style="color:var(--danger)">載入失敗：'+e.message+'</div>'}}
+async function loadList(){
+  // 先用快取顯示
+  if(Object.keys(cache).length>0) renderList(cache);
+  // 背景更新
+  try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings||{};lastFetch=Date.now();renderList(cache)}else if(Object.keys(cache).length===0){$('bookingList').innerHTML='<div class="page-loading" style="color:var(--danger)">載入失敗：'+(r.error||'未知錯誤')+'</div>'}}catch(e){if(Object.keys(cache).length===0)$('bookingList').innerHTML='<div class="page-loading" style="color:var(--danger)">載入失敗：'+e.message+'</div>'}}
 function renderList(bks){var c=$('bookingList'),items=[];Object.entries(bks).forEach(function(e){var bld=e[0],list=e[1];if(!Array.isArray(list))return;list.forEach(function(b){items.push(Object.assign({},b,{building:bld}))})});items.sort(function(a,b){return parseLocalDate(b['入住日期'])-parseLocalDate(a['入住日期'])});if(!items.length){c.innerHTML='<div class="page-loading" style="color:var(--text3)">尚無訂單</div>';return}
 c.innerHTML=items.map(function(b,idx){
 var name=b['姓名']||'—';
@@ -588,8 +621,8 @@ $('editModalTitle').textContent='編輯：'+bk['姓名'];$('editModal').classLis
 function closeModal(id){$(id).classList.remove('active')}
 $('eDiscount').addEventListener('change',function(){$('eCustomArea').style.display=this.value==='custom'?'block':'none'});
 async function submitEdit(ev){ev.preventDefault();var data={orderId:$('eOrderId').value,building:$('eBuilding').value,roomName:$('eRoom').value,guestName:$('eName').value,phone:$('ePhone').value,checkIn:$('eCheckIn').value,checkOut:$('eCheckOut').value,extraBeds:+$('eExtraBed').value||0,depositStatus:$('eDeposit').value,notes:$('eNotes').value,discountType:$('eDiscount').value||'',customPrice:+($('eCustomPrice').value)||0};
-try{var r=await api('updateBooking',{data:JSON.stringify(data)});if(r.success){showToast('已更新');closeModal('editModal');loadList();renderCal()}else showToast('失敗')}catch(e){showToast('錯誤')}return false}
-async function delBooking(){if(!confirm('確定刪除此訂單？'))return;try{var r=await api('deleteBooking',{building:$('eBuilding').value,orderId:$('eOrderId').value});if(r.success){showToast('已刪除');closeModal('editModal');loadList();renderCal()}}catch(e){}}
+try{var r=await api('updateBooking',{data:JSON.stringify(data)});if(r.success){showToast('已更新');closeModal('editModal');lastFetch=0;fetchAllData(true).then(function(){renderList(cache);renderCalFromCache()})}else showToast('失敗')}catch(e){showToast('錯誤')}return false}
+async function delBooking(){if(!confirm('確定刪除此訂單？'))return;try{var r=await api('deleteBooking',{building:$('eBuilding').value,orderId:$('eOrderId').value});if(r.success){showToast('已刪除');closeModal('editModal');lastFetch=0;fetchAllData(true).then(function(){renderList(cache);renderCalFromCache()})}}catch(e){}}
 
 // === REPORT ===
 function initRep(){var n=new Date();repY=n.getFullYear();repM=n.getMonth()+1;loadRep()}
