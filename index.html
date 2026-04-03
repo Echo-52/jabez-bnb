@@ -22,7 +22,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100dvh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 .app{display:flex;flex-direction:column;min-height:100dvh}
-.page{display:none;flex:1;padding-bottom:calc(var(--bottom-h)+100px)}.page.active{display:block}
+.page{display:none;flex:1;padding-bottom:180px}.page.active{display:block}
 .container{max-width:640px;margin:0 auto;padding:16px}
 
 /* nav */
@@ -195,8 +195,9 @@ html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(
 <div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-radius:var(--radius-xs);text-align:left;font-size:.75rem;color:var(--text3);line-height:1.7">
 💡 <b style="color:var(--text2)">語音範例</b><br>
 「<span style="color:var(--text)">張小姐 0912345678 四月五號到七號 雙人房</span>」<br>
-「<span style="color:var(--text)">林先生 稻禾 五月一號到三號 加一床</span>」<br>
-可任意組合，順序不拘，系統會自動辨識
+「<span style="color:var(--text)">林先生 一館 稻禾 五月一號到三號 加一床</span>」<br>
+「<span style="color:var(--text)">王太太 三館 七月十號到十二號</span>」<br>
+<span style="font-size:.7rem">館別：一館 / 二館 / 三館（旭山）/ 四館（嶼田）<br>可任意組合，順序不拘</span>
 </div>
 <div class="voice-result" id="voiceResult" style="display:none"></div>
 </div>
@@ -229,7 +230,8 @@ html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(
 <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-weight:600"><span>總金額</span><span id="priceTotal" style="color:var(--accent);font-size:1.1rem"></span></div>
 <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--text2);margin-top:4px"><span>訂金</span><span id="priceDeposit"></span></div>
 </div>
-<button type="submit" class="btn btn-primary btn-block" style="margin-top:14px" id="submitBtn">確認送出</button>
+<button type="submit" class="btn btn-primary btn-block" style="margin-top:14px;margin-bottom:20px" id="submitBtn">確認送出</button>
+<div style="height:30px"></div>
 </form>
 </div></div>
 </div>
@@ -390,8 +392,9 @@ grid.innerHTML=html;if(selDate)showDay(selDate);else $('dayDetail').style.displa
 function selDay(dk){selDate=dk;document.querySelectorAll('.cal-day').forEach(function(el){el.classList.remove('selected')});event.currentTarget.classList.add('selected');showDay(dk)}
 function showDay(dk){$('dayDetail').style.display='block';var p=dk.split('-'),dObj=new Date(+p[0],+p[1]-1,+p[2]),dn=['日','一','二','三','四','五','六'];$('dayDetailTitle').textContent=(+p[1])+'/'+(+p[2])+'（'+dn[dObj.getDay()]+'）';var rooms=R(),html='';
 BLDS.forEach(function(bld,bi){var rl=rooms[bld]||[];html+='<div class="room-building-section"><div class="room-building-title '+BRBT[bi]+'">'+bld+'</div>';rl.forEach(function(room){var bl=cache[bld]||[],bk=null;for(var j=0;j<bl.length;j++){var b=bl[j],ci=new Date(b['入住日期']),co=new Date(b['退房日期']),ch=new Date(dk);if(ch>=ci&&ch<co&&b['房間名稱']===room.name){bk=b;break}}
-if(bk){html+='<div class="room-status-item occupied" onclick="openEdit(\''+bld+'\',\''+bk['訂單編號']+'\')"><div><div class="room-name">'+room.name+'</div><div class="room-capacity">'+room.capacity+'人</div></div><div class="room-guest"><div>'+bk['姓名']+'</div><div style="font-size:.7rem;color:var(--text3)">'+bk['入住日期']+'~'+bk['退房日期']+'</div></div><span class="status-badge occupied">已訂</span></div>'}else{html+='<div class="room-status-item available"><div><div class="room-name">'+room.name+'</div><div class="room-capacity">'+room.capacity+'人'+(room.isPackage?'（包棟）':'')+'</div></div><span class="status-badge available">空房</span></div>'}});html+='</div>'});
-$('roomStatusGrid').innerHTML=html}
+if(bk){html+='<div class="room-status-item occupied" data-bld="'+bld+'" data-oid="'+bk['訂單編號']+'"><div><div class="room-name">'+room.name+'</div><div class="room-capacity">'+room.capacity+'人</div></div><div class="room-guest"><div>'+bk['姓名']+'</div><div style="font-size:.7rem;color:var(--text3)">'+bk['入住日期']+'~'+bk['退房日期']+'</div></div><span class="status-badge occupied">已訂</span></div>'}else{html+='<div class="room-status-item available"><div><div class="room-name">'+room.name+'</div><div class="room-capacity">'+room.capacity+'人'+(room.isPackage?'（包棟）':'')+'</div></div><span class="status-badge available">空房</span></div>'}});html+='</div>'});
+$('roomStatusGrid').innerHTML=html;
+$('roomStatusGrid').querySelectorAll('.occupied').forEach(function(el){el.addEventListener('click',function(){openEdit(el.dataset.bld,el.dataset.oid)})})}
 async function refreshCal(){await renderCal()}
 
 // === DATE PICKER (Booking style) ===
@@ -436,11 +439,12 @@ btn.disabled=false;btn.textContent='確認送出';return false}
 // === VOICE ===
 var recog=null,isRec=false;
 function toggleVoice(){if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){showToast('請用 Chrome 瀏覽器');return}if(isRec){stopV();return}navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){s.getTracks().forEach(function(t){t.stop()});startRec()}).catch(function(e){showToast('麥克風權限被拒');$('voiceStatus').textContent='請允許麥克風權限'})}
-function startRec(){var SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='zh-TW';recog.continuous=false;recog.interimResults=true;
-recog.onstart=function(){isRec=true;$('voiceBtn').classList.add('recording');$('voiceWave').style.display='flex';$('voiceStatus').textContent='正在聆聽...';$('voiceResult').style.display='block';$('voiceResult').textContent=''};
-recog.onresult=function(ev){var t='';for(var i=0;i<ev.results.length;i++)t+=ev.results[i][0].transcript;$('voiceResult').textContent='🎙️ '+t;if(ev.results[ev.results.length-1].isFinal)parseV(t)};
+function startRec(){var SR=window.SpeechRecognition||window.webkitSpeechRecognition;recog=new SR();recog.lang='zh-TW';recog.continuous=true;recog.interimResults=true;recog.maxAlternatives=3;
+var finalText='',silenceTimer=null;
+recog.onstart=function(){isRec=true;$('voiceBtn').classList.add('recording');$('voiceWave').style.display='flex';$('voiceStatus').textContent='正在聆聽...（說完後會自動辨識）';$('voiceResult').style.display='block';$('voiceResult').textContent=''};
+recog.onresult=function(ev){var interim='',final='';for(var i=0;i<ev.results.length;i++){if(ev.results[i].isFinal)final+=ev.results[i][0].transcript;else interim+=ev.results[i][0].transcript}finalText=final;$('voiceResult').textContent='🎙️ '+(final||interim);if(final){clearTimeout(silenceTimer);silenceTimer=setTimeout(function(){stopV();parseV(finalText)},2000)}};
 recog.onerror=function(ev){var m={'no-speech':'未偵測到語音','audio-capture':'找不到麥克風','not-allowed':'權限被拒','network':'網路問題'}[ev.error]||'辨識錯誤';$('voiceStatus').textContent=m;stopV()};
-recog.onend=function(){stopV()};recog.start()}
+recog.onend=function(){if(finalText&&isRec){parseV(finalText)}stopV()};recog.start()}
 function stopV(){if(recog)try{recog.stop()}catch(e){}isRec=false;$('voiceBtn').classList.remove('recording');$('voiceWave').style.display='none';$('voiceStatus').textContent='點擊麥克風，說出訂房資訊'}
 function parseV(text){
 var res={};
@@ -491,10 +495,10 @@ for(var kk=0;kk<typeMap[j].keys.length;kk++){
 if(t.indexOf(typeMap[j].keys[kk])!==-1){var m=bR.find(function(r){return r.capacity===typeMap[j].c});if(m)res.room=m.name;break}}if(res.room)break}}
 
 // === 館別切換 ===
-if(t.indexOf('一館')!==-1)$('fBuilding').value='一館';
-else if(t.indexOf('二館')!==-1)$('fBuilding').value='二館';
-else if(t.indexOf('旭山')!==-1)$('fBuilding').value='旭山館';
-else if(t.indexOf('嶼田')!==-1)$('fBuilding').value='嶼田館';
+if(t.indexOf('一館')!==-1||t.indexOf('1館')!==-1||t.indexOf('壹館')!==-1||t.indexOf('第一館')!==-1)$('fBuilding').value='一館';
+else if(t.indexOf('二館')!==-1||t.indexOf('2館')!==-1||t.indexOf('貳館')!==-1||t.indexOf('第二館')!==-1)$('fBuilding').value='二館';
+else if(t.indexOf('三館')!==-1||t.indexOf('3館')!==-1||t.indexOf('旭山')!==-1||t.indexOf('許山')!==-1||t.indexOf('續山')!==-1||t.indexOf('第三館')!==-1||t.indexOf('旭山館')!==-1)$('fBuilding').value='旭山館';
+else if(t.indexOf('四館')!==-1||t.indexOf('4館')!==-1||t.indexOf('嶼田')!==-1||t.indexOf('雨田')!==-1||t.indexOf('御田')!==-1||t.indexOf('魚田')!==-1||t.indexOf('第四館')!==-1||t.indexOf('嶼田館')!==-1)$('fBuilding').value='嶼田館';
 var bldChanged=$('fBuilding').value!==bld;
 if(bldChanged){updateRoomOpts();togglePkgDiscount();bR=R()[$('fBuilding').value]||[];
 // Re-match room after building change
@@ -529,7 +533,34 @@ showToast(pa.length>0?'已辨識 '+pa.length+' 個欄位':'請手動填寫')
 // === LIST ===
 async function loadList(){try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings;renderList(r.bookings)}}catch(e){$('bookingList').innerHTML='<div class="page-loading">載入失敗</div>'}}
 function renderList(bks){var c=$('bookingList'),items=[];Object.entries(bks).forEach(function(e){var bld=e[0],list=e[1];if(!Array.isArray(list))return;list.forEach(function(b){items.push(Object.assign({},b,{building:bld}))})});items.sort(function(a,b){return new Date(b['入住日期'])-new Date(a['入住日期'])});if(!items.length){c.innerHTML='<div class="page-loading" style="color:var(--text3)">尚無訂單</div>';return}
-c.innerHTML=items.map(function(b){return'<div class="booking-item" onclick="openEdit(\''+b.building+'\',\''+b['訂單編號']+'\')"><div style="display:flex;justify-content:space-between;align-items:start"><div class="guest-name">'+(b['姓名']||'—')+'</div><span class="deposit-badge '+(b['訂金狀態']==='已收'?'received':'pending')+'">訂金'+(b['訂金狀態']||'未收')+'</span></div><div class="booking-meta">'+(b['館別']||b.building)+' · '+(b['房間名稱']||'')+'<br>'+(b['入住日期']||'')+' → '+(b['退房日期']||'')+'（'+(b['住宿晚數']||'?')+'晚）'+(b['折扣類型']&&b['折扣類型']!=='無'?' · '+b['折扣類型']:'')+'<br>'+(b['電話']||'')+(b['備註']?' · '+b['備註']:'')+'</div><div class="booking-price">$'+((b['總金額']||0).toLocaleString())+'<span style="font-weight:400;color:var(--text3);font-size:.8rem"> ｜訂金 $'+((b['訂金金額']||0).toLocaleString())+'</span></div></div>'}).join('')}
+c.innerHTML=items.map(function(b,idx){
+var name=b['姓名']||'—';
+var depStat=b['訂金狀態']||'未收';
+var depCls=depStat==='已收'?'received':'pending';
+var bldName=b['館別']||b.building||'';
+var roomName=b['房間名稱']||'';
+var ciDate=b['入住日期']||'';
+var coDate=b['退房日期']||'';
+var nights=b['住宿晚數']||'?';
+var disc=b['折扣類型'];
+var discTxt=(disc&&disc!=='無')?' · '+disc:'';
+var phone=b['電話']||'';
+var notes=b['備註']?(' · '+b['備註']):'';
+var total=(b['總金額']||0).toLocaleString();
+var deposit=(b['訂金金額']||0).toLocaleString();
+return '<div class="booking-item" data-bld="'+bldName+'" data-oid="'+b['訂單編號']+'">'
++'<div style="display:flex;justify-content:space-between;align-items:start">'
++'<div class="guest-name">'+name+'</div>'
++'<span class="deposit-badge '+depCls+'">訂金'+depStat+'</span></div>'
++'<div class="booking-meta">'+bldName+' · '+roomName+'<br>'
++ciDate+' → '+coDate+'（'+nights+'晚）'+discTxt+'<br>'
++phone+notes+'</div>'
++'<div class="booking-price">$'+total
++'<span style="font-weight:400;color:var(--text3);font-size:.8rem"> ｜訂金 $'+deposit+'</span></div></div>';
+}).join('');
+// Attach click handlers via delegation
+c.querySelectorAll('.booking-item').forEach(function(el){
+el.addEventListener('click',function(){openEdit(el.dataset.bld,el.dataset.oid)})})}
 function debounceSearch(){clearTimeout(searchT);searchT=setTimeout(doSearch,400)}
 async function doSearch(){var kw=$('searchInput').value.trim();if(!kw){loadList();return}try{var r=await api('searchBookings',{keyword:kw});if(r&&r.success){var g={};r.bookings.forEach(function(b){var bl=b.building||'?';if(!g[bl])g[bl]=[];g[bl].push(b)});renderList(g)}}catch(e){}}
 
