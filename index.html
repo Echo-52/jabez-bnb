@@ -331,7 +331,7 @@ html{font-size:17px}body{font-family:var(--font);background:var(--bg);color:var(
 // ★★★ 設定 ★★★
 var API_URL='https://script.google.com/macros/s/AKfycbwF6ldhEVkVYv4OaFfMjpbbBB6RvkN7UBkKIJqEMLhDIY7gq_6eztM4w5SdgIoOw2_P/exec';
 var APP_VERSION='2025.04.04.1';
-var GITHUB_RAW='https://raw.githubusercontent.com/Echo-52/jabez-bnb/main/index.html';
+var GITHUB_RAW='https://api.github.com/repos/Echo-52/jabez-bnb/contents/index.html';
 
 function $(id){return document.getElementById(id)}
 function showToast(msg){var t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2500)}
@@ -675,21 +675,29 @@ function checkUpdate(){
   $('updateResult').textContent='正在檢查...';
   var xhr=new XMLHttpRequest();
   xhr.open('GET',GITHUB_RAW+'?t='+Date.now(),true);
+  xhr.setRequestHeader('Accept','application/vnd.github.v3+json');
   xhr.onload=function(){
     $('updateBtn').disabled=false;
     if(xhr.status===200){
-      var match=xhr.responseText.match(/APP_VERSION='([^']+)'/);
-      if(match){
-        var remoteVer=match[1];
-        if(remoteVer!==APP_VERSION){
-          $('verStatus').innerHTML='<span style="color:var(--danger)">有新版本：'+remoteVer+'</span>';
-          $('updateResult').innerHTML='<button class="btn btn-primary btn-block" onclick="forceUpdate()" style="margin-top:8px;font-size:.95rem">⬆️ 立即更新到 '+remoteVer+'</button>';
+      try{
+        var data=JSON.parse(xhr.responseText);
+        // GitHub API 回傳 base64 編碼的內容，只取前面一小段來找版本號
+        var content=atob(data.content.replace(/\n/g,'').substring(0,2000));
+        var match=content.match(/APP_VERSION='([^']+)'/);
+        if(match){
+          var remoteVer=match[1];
+          if(remoteVer!==APP_VERSION){
+            $('verStatus').innerHTML='<span style="color:var(--danger)">有新版本：'+remoteVer+'</span>';
+            $('updateResult').innerHTML='<button class="btn btn-primary btn-block" onclick="forceUpdate()" style="margin-top:8px;font-size:.95rem">⬆️ 立即更新到 '+remoteVer+'</button>';
+          }else{
+            $('verStatus').innerHTML='<span style="color:var(--success)">✓ 已是最新版</span>';
+            $('updateResult').textContent='';
+          }
         }else{
-          $('verStatus').innerHTML='<span style="color:var(--success)">✓ 已是最新版</span>';
-          $('updateResult').textContent='';
+          $('updateResult').textContent='無法解析版本號，請確認已上傳最新檔案';
         }
-      }else{
-        $('updateResult').textContent='無法解析遠端版本';
+      }catch(e){
+        $('updateResult').textContent='解析失敗：'+e.message;
       }
     }else{
       $('updateResult').textContent='檢查失敗（'+xhr.status+'）';
