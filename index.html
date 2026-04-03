@@ -347,18 +347,19 @@ function gDR(){return S&&S.depositRate||0.5}
 function gCNY(){return S&&S.cny||{enabled:false}}
 
 // === API ===
-async function api(a,p){if(!API_URL)return demo(a,p);
+function api(a,p){if(!API_URL)return Promise.resolve(demo(a,p));
 var u=API_URL+'?action='+encodeURIComponent(a)+'&key='+encodeURIComponent(SECRET_KEY)+'&email='+encodeURIComponent(currentUser);
 if(p){Object.entries(p).forEach(function(e){if(e[1]!=null)u+='&'+encodeURIComponent(e[0])+'='+encodeURIComponent(e[1])})}
-try{
-  var r=await fetch(u,{redirect:'follow'});
-  var text=await r.text();
-  try{return JSON.parse(text)}catch(pe){
-    console.error('API 回應非 JSON:',text.substring(0,200));
-    showToast('API 回應錯誤');
-    return{success:false,error:'回應格式錯誤'}
-  }
-}catch(e){console.error('API 呼叫失敗:',e);showToast('連線失敗');return{success:false,error:e.message}}}
+return new Promise(function(resolve){
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET',u,true);
+  xhr.onload=function(){
+    try{resolve(JSON.parse(xhr.responseText))}
+    catch(e){console.error('API 回應非 JSON:',xhr.responseText.substring(0,200));resolve({success:false,error:'回應格式錯誤'})}
+  };
+  xhr.onerror=function(){console.error('API 連線失敗');showToast('連線失敗');resolve({success:false,error:'連線失敗'})};
+  xhr.send();
+})}
 
 // === DEMO ===
 var DB={},DS=null;
@@ -384,6 +385,7 @@ async function loadS(){try{var r=await api('getSettings');if(r.success){delete r
 function switchPage(id,btn){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});$(id).classList.add('active');document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});if(btn)btn.classList.add('active');if(id==='pageCal')refreshCal();if(id==='pageList')loadList();if(id==='pageReport')initRep();if(id==='pageSettings')loadSetUI()}
 
 // === CAL ===
+function parseLocalDate(s){if(!s)return new Date(NaN);var p=String(s).substring(0,10).split('-');return new Date(+p[0],+p[1]-1,+p[2])}
 function initCal(){var n=new Date();calY=n.getFullYear();calM=n.getMonth();selDate=null;renderCal()}
 function calPrev(){calM--;if(calM<0){calM=11;calY--}selDate=null;renderCal()}
 function calNext(){calM++;if(calM>11){calM=0;calY++}selDate=null;renderCal()}
@@ -392,7 +394,6 @@ var grid=$('calGrid'),days=['日','一','二','三','四','五','六'];
 var html=days.map(function(d){return'<div class="cal-day-header">'+d+'</div>'}).join('');
 var fd=new Date(calY,calM,1).getDay(),dim=new Date(calY,calM+1,0).getDate(),today=new Date();
 // build per-building per-date counts
-function parseLocalDate(s){if(!s)return new Date(NaN);var p=String(s).substring(0,10).split('-');return new Date(+p[0],+p[1]-1,+p[2])}
 var bd={};BLDS.forEach(function(bld,bi){var list=cache[bld];if(!Array.isArray(list))return;var rooms=R()[bld]||[];var total=rooms.length;list.forEach(function(b){var ci=parseLocalDate(b['入住日期']),co=parseLocalDate(b['退房日期']);if(isNaN(ci)||isNaN(co))return;var c=new Date(ci);while(c<co){var k=c.getFullYear()+'-'+String(c.getMonth()+1).padStart(2,'0')+'-'+String(c.getDate()).padStart(2,'0');if(!bd[k])bd[k]={};if(!bd[k][bi])bd[k][bi]=0;bd[k][bi]++;c.setDate(c.getDate()+1)}})});
 for(var i=0;i<fd;i++)html+='<div class="cal-day empty"></div>';
 for(var d=1;d<=dim;d++){var dObj=new Date(calY,calM,d),dow=dObj.getDay(),dk=calY+'-'+String(calM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
