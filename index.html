@@ -278,6 +278,12 @@ html{font-size:17px}body{font-family:var(--font);background:var(--bg);color:var(
 <div class="form-group"><label class="form-label">每晚加價</label><input class="form-input" id="setCnyCharge" type="number" value="2000"></div>
 </div>
 <button class="btn btn-primary btn-block" onclick="saveAllSettings()">儲存所有設定</button>
+<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+<button class="btn btn-outline btn-block" onclick="window.open('https://docs.google.com/spreadsheets/d/1Xs4DJTFesWD6vJYQPbyjwMoPmWyq2ydCqF8lKy3vRFo/edit?usp=sharing','_blank')" style="font-size:.95rem">
+📊 開啟完整資料報表（Google 試算表）
+</button>
+<div style="font-size:.75rem;color:var(--text3);text-align:center;margin-top:6px">僅供查看，包含所有歷史訂單資料</div>
+</div>
 </div></div>
 
 <nav class="bottom-nav">
@@ -361,17 +367,18 @@ function logout(){currentUser='';currentPwd='';localStorage.removeItem('jbu');lo
 async function loadS(){try{var r=await api('getSettings');if(r.success){delete r.success;S=r;if(!S.rooms)S=null;try{localStorage.setItem('jbSettings',JSON.stringify(S))}catch(e){}}}catch(e){S=null}}
 
 // === DATA CACHE ===
+function currentMonth(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')}
 function saveCache(){try{localStorage.setItem('jbCache',JSON.stringify(cache));localStorage.setItem('jbCacheTime',''+Date.now())}catch(e){}}
 function fetchAllData(force){
   if(!force&&dataReady&&lastFetch&&(Date.now()-lastFetch<CACHE_TTL))return Promise.resolve();
   if(isFetching)return refreshPromise||Promise.resolve();
   isFetching=true;
-  refreshPromise=api('getAllBookings').then(function(r){
+  refreshPromise=api('getAllBookings',{month:currentMonth()}).then(function(r){
     if(r&&r.success){cache=r.bookings||{};lastFetch=Date.now();dataReady=true;saveCache()}
   }).catch(function(e){console.error('fetchAllData:',e)}).then(function(){isFetching=false});
   return refreshPromise;
 }
-// 背景靜默同步（不顯示載入動畫）
+// 背景靜默同步
 function bgSync(){fetchAllData(true).then(function(){renderCalFromCache()})}
 // 本地更新快取（不等 API 重新讀取）
 function localAddToCache(building,booking){
@@ -544,13 +551,61 @@ var pa=[];if(res.name)pa.push('姓名: '+res.name);if(bldChanged)pa.push('館別
 $('voiceResult').innerHTML='<div style="color:var(--text3);font-size:.78rem;margin-bottom:6px">🎙️「'+text+'」</div>'+(pa.length>0?'<div style="color:var(--success);font-weight:500">✓ 已辨識 '+pa.length+' 個欄位</div><div style="font-size:.8rem;color:var(--text2);margin-top:4px">'+pa.join(' ｜ ')+'</div>':'<div style="color:var(--warning)">⚠ 無法辨識，請手動輸入</div>');showToast(pa.length>0?'已辨識 '+pa.length+' 個欄位':'請手動填寫')}
 
 // === LIST ===
+var BLD_DOT={'一館':'var(--c1)','二館':'var(--c2)','旭山館':'var(--c3)','嶼田館':'var(--c4)'};
+var BLD_BORDER={'一館':'var(--c1)','二館':'var(--c2)','旭山館':'var(--c3)','嶼田館':'var(--c4)'};
 async function loadList(){if(Object.keys(cache).length>0)renderList(cache);showLoading('載入訂單...');await fetchAllData(true);hideLoading();renderList(cache)}
-function renderList(bks){var c=$('bookingList'),items=[];Object.entries(bks).forEach(function(e){var bld=e[0],list=e[1];if(!Array.isArray(list))return;list.forEach(function(b){items.push(Object.assign({},b,{building:bld}))})});items.sort(function(a,b){return parseLocalDate(b['入住日期'])-parseLocalDate(a['入住日期'])});if(!items.length){c.innerHTML='<div style="text-align:center;padding:48px;color:var(--text3)">尚無訂單</div>';return}
-c.innerHTML=items.map(function(b){var name=b['姓名']||'—',ds=b['訂金狀態']||'未收',dc=ds==='已收'?'received':'pending';
-return'<div class="booking-item" data-bld="'+(b['館別']||b.building)+'" data-oid="'+b['訂單編號']+'"><div style="display:flex;justify-content:space-between;align-items:start"><div class="guest-name">'+name+'</div><span class="deposit-badge '+dc+'">訂金'+ds+'</span></div><div class="booking-meta">'+(b['館別']||b.building)+' · '+(b['房間名稱']||'')+'<br>'+(b['入住日期']||'')+' → '+(b['退房日期']||'')+'（'+(b['住宿晚數']||'?')+'晚）<br>'+(b['電話']||'')+(b['備註']?' · '+b['備註']:'')+'</div><div class="booking-price">$'+((b['總金額']||0).toLocaleString())+'<span style="font-weight:400;color:var(--text3);font-size:.8rem"> ｜訂金 $'+((b['訂金金額']||0).toLocaleString())+'</span></div></div>'}).join('');
-c.querySelectorAll('.booking-item').forEach(function(el){el.addEventListener('click',function(){openEdit(el.dataset.bld,el.dataset.oid)})})}
+
+function renderList(bks){
+var c=$('bookingList');
+var today=new Date();today.setHours(0,0,0,0);
+var todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+var todayItems=[],upcoming=[],history=[];
+
+Object.entries(bks).forEach(function(e){var bld=e[0],list=e[1];if(!Array.isArray(list))return;
+  list.forEach(function(b){var item=Object.assign({},b,{building:bld});
+    var ci=b['入住日期']||'',co=b['退房日期']||'';
+    // 今天在入住~退房之間 → 今日訂單
+    if(ci<=todayStr&&co>todayStr){todayItems.push(item)}
+    // 入住日在今天之後 → 即將入住
+    else if(ci>todayStr){upcoming.push(item)}
+    // 其他 → 已退房
+    else{history.push(item)}
+  })});
+
+var bldOrder={'一館':1,'二館':2,'旭山館':3,'嶼田館':4};
+function sortByBldThenDate(a,b,asc){var bo=(bldOrder[a.building||a['館別']]||9)-(bldOrder[b.building||b['館別']]||9);if(bo!==0)return bo;return asc?(a['入住日期']||'').localeCompare(b['入住日期']||''):(b['入住日期']||'').localeCompare(a['入住日期']||'')}
+todayItems.sort(function(a,b){return sortByBldThenDate(a,b,true)});
+upcoming.sort(function(a,b){return sortByBldThenDate(a,b,true)});
+history.sort(function(a,b){return sortByBldThenDate(a,b,false)});
+
+if(!todayItems.length&&!upcoming.length&&!history.length){c.innerHTML='<div style="text-align:center;padding:48px;color:var(--text3)">本月尚無訂單</div>';return}
+
+var html='';
+if(todayItems.length){
+  html+='<div style="font-size:1.05rem;font-weight:600;color:var(--danger);margin-bottom:10px">📌 今日入住中（'+todayItems.length+'筆）</div>';
+  html+=renderBookingCards(todayItems);
+}
+if(upcoming.length){
+  html+='<div style="font-size:1rem;font-weight:600;color:var(--accent);margin:'+(todayItems.length?'20px':'0')+' 0 10px">即將入住（'+upcoming.length+'筆）</div>';
+  html+=renderBookingCards(upcoming);
+}
+if(history.length){
+  html+='<div style="font-size:1rem;font-weight:600;color:var(--text3);margin:20px 0 10px">已退房（'+history.length+'筆）</div>';
+  html+=renderBookingCards(history);
+}
+c.innerHTML=html;
+c.querySelectorAll('.booking-item').forEach(function(el){el.addEventListener('click',function(){openEdit(el.dataset.bld,el.dataset.oid)})})
+}
+
+function renderBookingCards(items){
+return items.map(function(b){
+  var name=b['姓名']||'—',ds=b['訂金狀態']||'未收',dc=ds==='已收'?'received':'pending';
+  var bld=b['館別']||b.building||'';
+  var dotColor=BLD_DOT[bld]||'var(--text3)';
+  return'<div class="booking-item" data-bld="'+bld+'" data-oid="'+b['訂單編號']+'"><div style="display:flex;justify-content:space-between;align-items:start"><div class="guest-name"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+dotColor+';margin-right:6px;vertical-align:middle"></span>'+name+'</div><span class="deposit-badge '+dc+'">訂金'+ds+'</span></div><div class="booking-meta">'+bld+' · '+(b['房間名稱']||'')+'<br>'+(b['入住日期']||'')+' → '+(b['退房日期']||'')+'（'+(b['住宿晚數']||'?')+'晚）<br>'+(b['電話']||'')+(b['備註']?' · '+b['備註']:'')+'</div><div class="booking-price">$'+((b['總金額']||0).toLocaleString())+'<span style="font-weight:400;color:var(--text3);font-size:.8rem"> ｜訂金 $'+((b['訂金金額']||0).toLocaleString())+'</span></div></div>'
+}).join('')}
 function debounceSearch(){clearTimeout(searchT);searchT=setTimeout(doSearch,400)}
-async function doSearch(){var kw=$('searchInput').value.trim();if(!kw){loadList();return}showLoading('搜尋中...');try{var r=await api('searchBookings',{keyword:kw});hideLoading();if(r&&r.success){var g={};r.bookings.forEach(function(b){var bl=b.building||'?';if(!g[bl])g[bl]=[];g[bl].push(b)});renderList(g)}}catch(e){hideLoading()}}
+async function doSearch(){var kw=$('searchInput').value.trim();if(!kw){renderList(cache);return}showLoading('搜尋中...');try{var r=await api('searchBookings',{keyword:kw});hideLoading();if(r&&r.success){var g={};r.bookings.forEach(function(b){var bl=b.building||b['館別']||'?';if(!g[bl])g[bl]=[];g[bl].push(b)});renderList(g)}}catch(e){hideLoading()}}
 
 // === EDIT ===
 function openEdit(bld,oid){var list=cache[bld]||[],bk=list.find(function(b){return b['訂單編號']===oid});if(!bk){showToast('找不到訂單');return}
