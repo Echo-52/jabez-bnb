@@ -193,11 +193,10 @@ html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(
 <div id="voiceWave" class="voice-wave" style="display:none"><span></span><span></span><span></span><span></span><span></span></div>
 <div class="voice-text" id="voiceStatus">點擊麥克風，說出訂房資訊</div>
 <div style="margin-top:10px;padding:10px 14px;background:var(--bg);border-radius:var(--radius-xs);text-align:left;font-size:.75rem;color:var(--text3);line-height:1.7">
-💡 <b style="color:var(--text2)">語音範例</b><br>
-「<span style="color:var(--text)">張小姐 0912345678 四月五號到七號 雙人房</span>」<br>
-「<span style="color:var(--text)">林先生 一館 稻禾 五月一號到三號 加一床</span>」<br>
-「<span style="color:var(--text)">王太太 三館 七月十號到十二號</span>」<br>
-<span style="font-size:.7rem">館別：一館 / 二館 / 三館（旭山）/ 四館（嶼田）<br>可任意組合，順序不拘</span>
+💡 <b style="color:var(--text2)">語音格式</b>：姓名、館別、房間、入住期間、電話<br>
+「<span style="color:var(--text)">張小姐 一館 雙人房 四月五號到七號 0912345678</span>」<br>
+「<span style="color:var(--text)">林先生 三館 七月十號到十二號 0923456789</span>」<br>
+<span style="font-size:.7rem">館別：一館 / 二館 / 三館（旭山）/ 四館（嶼田）｜順序不拘</span>
 </div>
 <div class="voice-result" id="voiceResult" style="display:none"></div>
 </div>
@@ -348,7 +347,18 @@ function gDR(){return S&&S.depositRate||0.5}
 function gCNY(){return S&&S.cny||{enabled:false}}
 
 // === API ===
-async function api(a,p){if(!API_URL)return demo(a,p);var u=new URL(API_URL);u.searchParams.set('action',a);u.searchParams.set('key',SECRET_KEY);u.searchParams.set('email',currentUser);if(p)Object.entries(p).forEach(function(e){if(e[1]!=null)u.searchParams.set(e[0],e[1])});try{var r=await fetch(u);return await r.json()}catch(e){showToast('連線失敗');return{success:false}}}
+async function api(a,p){if(!API_URL)return demo(a,p);
+var u=API_URL+'?action='+encodeURIComponent(a)+'&key='+encodeURIComponent(SECRET_KEY)+'&email='+encodeURIComponent(currentUser);
+if(p){Object.entries(p).forEach(function(e){if(e[1]!=null)u+='&'+encodeURIComponent(e[0])+'='+encodeURIComponent(e[1])})}
+try{
+  var r=await fetch(u,{redirect:'follow'});
+  var text=await r.text();
+  try{return JSON.parse(text)}catch(pe){
+    console.error('API 回應非 JSON:',text.substring(0,200));
+    showToast('API 回應錯誤');
+    return{success:false,error:'回應格式錯誤'}
+  }
+}catch(e){console.error('API 呼叫失敗:',e);showToast('連線失敗');return{success:false,error:e.message}}}
 
 // === DEMO ===
 var DB={},DS=null;
@@ -377,7 +387,7 @@ function switchPage(id,btn){document.querySelectorAll('.page').forEach(function(
 function initCal(){var n=new Date();calY=n.getFullYear();calM=n.getMonth();selDate=null;renderCal()}
 function calPrev(){calM--;if(calM<0){calM=11;calY--}selDate=null;renderCal()}
 function calNext(){calM++;if(calM>11){calM=0;calY++}selDate=null;renderCal()}
-async function renderCal(){$('calLabel').textContent=calY+'年'+(calM+1)+'月';var ms=calY+'-'+String(calM+1).padStart(2,'0');try{var r=await api('getAllBookings',{month:ms});if(r&&r.success)cache=r.bookings}catch(e){}
+async function renderCal(){$('calLabel').textContent=calY+'年'+(calM+1)+'月';var ms=calY+'-'+String(calM+1).padStart(2,'0');try{var r=await api('getAllBookings',{month:ms});if(r&&r.success)cache=r.bookings||{};else console.error('getAllBookings failed:',r)}catch(e){console.error('renderCal error:',e)}
 var grid=$('calGrid'),days=['日','一','二','三','四','五','六'];
 var html=days.map(function(d){return'<div class="cal-day-header">'+d+'</div>'}).join('');
 var fd=new Date(calY,calM,1).getDay(),dim=new Date(calY,calM+1,0).getDate(),today=new Date();
@@ -519,20 +529,21 @@ if(res.room){var sel=$('fRoom');for(var k=0;k<sel.options.length;k++){if(sel.opt
 if(res.extraBeds!==undefined)$('fExtraBed').value=res.extraBeds;
 calcPreview();
 
-// === 結果顯示 ===
+// === 結果顯示（順序：姓名→館別→房間→日期→電話）===
 var pa=[];
 if(res.name)pa.push('姓名: '+res.name);
-if(res.phone)pa.push('電話: '+res.phone);
+if(bldChanged)pa.push('館別: '+$('fBuilding').value);
+if(res.room)pa.push('房間: '+res.room);
 if(res.checkIn)pa.push('入住: '+res.checkIn);
 if(res.checkOut)pa.push('退房: '+res.checkOut);
-if(res.room)pa.push('房間: '+res.room);
+if(res.phone)pa.push('電話: '+res.phone);
 if(res.extraBeds)pa.push('加床: '+res.extraBeds);
 $('voiceResult').innerHTML='<div style="color:var(--text3);font-size:.78rem;margin-bottom:6px">🎙️「'+text+'」</div>'+(pa.length>0?'<div style="color:var(--success);font-weight:500">✓ 已辨識 '+pa.length+' 個欄位</div><div style="font-size:.8rem;color:var(--text2);margin-top:4px">'+pa.join(' ｜ ')+'</div>':'<div style="color:var(--warning)">⚠ 無法辨識，請手動輸入或再試一次</div>');
 showToast(pa.length>0?'已辨識 '+pa.length+' 個欄位':'請手動填寫')
 }
 
 // === LIST ===
-async function loadList(){try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings;renderList(r.bookings)}}catch(e){$('bookingList').innerHTML='<div class="page-loading">載入失敗</div>'}}
+async function loadList(){try{var r=await api('getAllBookings');if(r&&r.success){cache=r.bookings||{};renderList(r.bookings||{})}else{$('bookingList').innerHTML='<div class="page-loading" style="color:var(--danger)">載入失敗：'+(r.error||'未知錯誤')+'</div>'}}catch(e){$('bookingList').innerHTML='<div class="page-loading" style="color:var(--danger)">載入失敗：'+e.message+'</div>'}}
 function renderList(bks){var c=$('bookingList'),items=[];Object.entries(bks).forEach(function(e){var bld=e[0],list=e[1];if(!Array.isArray(list))return;list.forEach(function(b){items.push(Object.assign({},b,{building:bld}))})});items.sort(function(a,b){return parseLocalDate(b['入住日期'])-parseLocalDate(a['入住日期'])});if(!items.length){c.innerHTML='<div class="page-loading" style="color:var(--text3)">尚無訂單</div>';return}
 c.innerHTML=items.map(function(b,idx){
 var name=b['姓名']||'—';
