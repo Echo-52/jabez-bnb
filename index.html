@@ -457,10 +457,10 @@ if(res.checkIn&&!res.checkOut){var nights=t.match(/住\s*(\d+)\s*[晚天]/);if(n
 
 // 館別
 var bld=$('fBuilding').value;
-if(t.indexOf('一館')!==-1||t.indexOf('1館')!==-1||t.indexOf('壹館')!==-1)$('fBuilding').value='一館';
-else if(t.indexOf('二館')!==-1||t.indexOf('2館')!==-1||t.indexOf('貳館')!==-1)$('fBuilding').value='二館';
-else if(t.indexOf('三館')!==-1||t.indexOf('3館')!==-1||t.indexOf('旭山')!==-1||t.indexOf('許山')!==-1||t.indexOf('續山')!==-1||t.indexOf('序山')!==-1||t.indexOf('旭山館')!==-1)$('fBuilding').value='旭山館';
-else if(t.indexOf('四館')!==-1||t.indexOf('4館')!==-1||t.indexOf('嶼田')!==-1||t.indexOf('雨田')!==-1||t.indexOf('御田')!==-1||t.indexOf('魚田')!==-1||t.indexOf('語田')!==-1||t.indexOf('嶼田館')!==-1)$('fBuilding').value='嶼田館';
+if(t.indexOf('一館')!==-1||t.indexOf('1館')!==-1||t.indexOf('壹館')!==-1||t.indexOf('醫館')!==-1)$('fBuilding').value='一館';
+else if(t.indexOf('二館')!==-1||t.indexOf('2館')!==-1||t.indexOf('貳館')!==-1||t.indexOf('佴館')!==-1)$('fBuilding').value='二館';
+else if(t.indexOf('三館')!==-1||t.indexOf('3館')!==-1||t.indexOf('旭山')!==-1||t.indexOf('許山')!==-1||t.indexOf('續山')!==-1||t.indexOf('序山')!==-1||t.indexOf('旭山館')!==-1||t.indexOf('山館')!==-1||t.indexOf('珊館')!==-1||t.indexOf('參館')!==-1||t.indexOf('恤衫')!==-1||t.indexOf('序參')!==-1||t.indexOf('序餐')!==-1||t.indexOf('續餐')!==-1||t.indexOf('續珊')!==-1||t.indexOf('緒山')!==-1)$('fBuilding').value='旭山館';
+else if(t.indexOf('四館')!==-1||t.indexOf('4館')!==-1||t.indexOf('嶼田')!==-1||t.indexOf('雨田')!==-1||t.indexOf('御田')!==-1||t.indexOf('魚田')!==-1||t.indexOf('語田')!==-1||t.indexOf('嶼田館')!==-1||t.indexOf('試管')!==-1||t.indexOf('語填')!==-1||t.indexOf('宇恬')!==-1||t.indexOf('羽田')!==-1||t.indexOf('羽恬')!==-1)$('fBuilding').value='嶼田館';
 var bldChanged=$('fBuilding').value!==bld;
 if(bldChanged){updateRoomOpts();togglePkgDiscount()}
 var curBld=$('fBuilding').value,bR=R()[curBld]||[];
