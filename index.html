@@ -306,7 +306,7 @@ html{font-size:17px}body{font-family:var(--font);background:var(--bg);color:var(
 <input type="hidden" id="eOrderId"><input type="hidden" id="eBuilding">
 <div class="form-group"><label class="form-label">房間</label><select class="form-select" id="eRoom"></select></div>
 <div class="form-row"><div class="form-group"><label class="form-label">姓名</label><input class="form-input" id="eName" required></div><div class="form-group"><label class="form-label">電話</label><input class="form-input" id="ePhone" type="tel" required></div></div>
-<div class="form-row"><div class="form-group"><label class="form-label">入住</label><input class="form-input" id="eCheckIn" type="date" required></div><div class="form-group"><label class="form-label">退房</label><input class="form-input" id="eCheckOut" type="date" required></div></div>
+<div class="form-row"><div class="form-group"><label class="form-label">入住日期</label><input class="form-input" id="eCheckIn" type="text" placeholder="例：2026-04-05" required pattern="\d{4}-\d{2}-\d{2}" onclick="this.type='date'" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'"></div><div class="form-group"><label class="form-label">退房日期</label><input class="form-input" id="eCheckOut" type="text" placeholder="例：2026-04-07" required pattern="\d{4}-\d{2}-\d{2}" onclick="this.type='date'" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'"></div></div>
 <div class="form-row"><div class="form-group"><label class="form-label">加床</label><select class="form-select" id="eExtraBed"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div><div class="form-group"><label class="form-label">訂金</label><select class="form-select" id="eDeposit"><option value="未收">未收</option><option value="已收">已收</option></select></div></div>
 <div id="ePkgArea" style="display:none"><div class="form-group"><label class="form-label">折扣</label><select class="form-select" id="eDiscount"><option value="">無</option><option value="95">95折</option><option value="90">9折</option><option value="85">85折</option><option value="80">8折</option><option value="custom">自訂</option></select></div><div class="form-group" id="eCustomArea" style="display:none"><label class="form-label">自訂總價</label><input class="form-input" id="eCustomPrice" type="number"></div></div>
 <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="eNotes"></div>
@@ -422,7 +422,7 @@ html+='<div class="room-building-section"><div class="room-building-title '+BRBT
 if(isPkgBuilding){
   // 包棟：只顯示一個狀態（整棟已包 or 整棟空房）
   if(pkgBooking){
-    html+='<div class="room-status-item occupied" data-bld="'+bld+'" data-oid="'+pkgBooking['訂單編號']+'" style="font-size:.95rem"><div><div class="room-name" style="font-size:1rem">'+bld+'（已包棟）</div><div class="room-capacity" style="font-size:.85rem">'+(pkgBooking['房間名稱']||'')+'</div></div><div class="room-guest"><div style="font-size:.95rem">'+(pkgBooking['姓名']||'')+'</div><div style="font-size:.8rem;color:var(--text3)">'+(pkgBooking['入住日期']||'')+'~'+(pkgBooking['退房日期']||'')+'</div></div><span class="status-badge occupied">已包棟</span></div>';
+    html+='<div class="room-status-item occupied" data-bld="'+bld+'" data-oid="'+pkgBooking['訂單編號']+'" style="font-size:.95rem"><div style="flex:1;min-width:0"><div class="room-name" style="font-size:1rem">'+bld+'（已包棟）</div><div class="room-capacity" style="font-size:.85rem">'+(pkgBooking['房間名稱']||'')+'</div></div><div class="room-guest" style="flex-shrink:0;margin:0 8px"><div style="font-size:.95rem">'+(pkgBooking['姓名']||'')+'</div><div style="font-size:.8rem;color:var(--text3)">'+(pkgBooking['入住日期']||'')+'~'+(pkgBooking['退房日期']||'')+'</div></div><span class="status-badge occupied" style="white-space:nowrap;flex-shrink:0">已包棟</span></div>';
   }else{
     html+='<div class="room-status-item available" style="font-size:.95rem"><div><div class="room-name" style="font-size:1rem">'+bld+'（包棟）</div><div class="room-capacity" style="font-size:.85rem">可容納 8~20 人</div></div><span class="status-badge available">可預訂</span></div>';
   }
@@ -556,7 +556,11 @@ async function doSearch(){var kw=$('searchInput').value.trim();if(!kw){loadList(
 function openEdit(bld,oid){var list=cache[bld]||[],bk=list.find(function(b){return b['訂單編號']===oid});if(!bk){showToast('找不到訂單');return}
 $('eOrderId').value=oid;$('eBuilding').value=bld;
 var rms=R()[bld]||[];$('eRoom').innerHTML=rms.map(function(r){return'<option value="'+r.name+'"'+(r.name===bk['房間名稱']?' selected':'')+'>'+r.name+'</option>'}).join('');
-$('eName').value=bk['姓名']||'';$('ePhone').value=bk['電話']||'';$('eCheckIn').value=bk['入住日期']||'';$('eCheckOut').value=bk['退房日期']||'';$('eExtraBed').value=bk['加床數']||0;$('eDeposit').value=bk['訂金狀態']||'未收';$('eNotes').value=bk['備註']||'';
+$('eName').value=bk['姓名']||'';$('ePhone').value=bk['電話']||'';
+var ciStr=bk['入住日期']||'',coStr=bk['退房日期']||'';
+$('eCheckIn').type='text';$('eCheckIn').value=ciStr;
+$('eCheckOut').type='text';$('eCheckOut').value=coStr;
+$('eExtraBed').value=bk['加床數']||0;$('eDeposit').value=bk['訂金狀態']||'未收';$('eNotes').value=bk['備註']||'';
 var isPkg=bld==='旭山館'||bld==='嶼田館';$('ePkgArea').style.display=isPkg?'block':'none';$('eDiscount').value='';$('eCustomArea').style.display='none';
 $('editModalTitle').textContent='編輯：'+(bk['姓名']||'訂單');$('editModal').classList.add('active')}
 function closeModal(id){$(id).classList.remove('active')}
