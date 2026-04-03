@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0044)file:///C:/Users/POYA/Downloads/index_1.html -->
+<!-- saved from url=(0044)file:///C:/Users/POYA/Downloads/index_3.html -->
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -170,7 +170,8 @@ html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(
 <div class="login-card">
 <div class="login-logo">Jabez</div>
 <div class="login-subtitle">雅比斯民宿管理系統</div>
-<input class="login-input" id="loginEmail" type="email" placeholder="請輸入員工 Email">
+<input class="login-input" id="loginEmail" type="email" placeholder="請輸入 Email" autocomplete="username">
+<input class="login-input" id="loginPassword" type="password" placeholder="請輸入密碼" autocomplete="current-password">
 <button class="btn btn-primary btn-block" onclick="doLogin()" id="loginBtn">登入</button>
 <div id="loginError" class="login-error"></div>
 </div></div>
@@ -179,7 +180,7 @@ html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(
 <div id="mainApp" class="app" style="display: flex;">
 <nav class="top-nav">
 <div class="logo">Jabez<span>雅比斯民宿管理系統</span></div>
-<div class="user-info"><span id="userEmail" style="font-size:.7rem;max-width:110px;overflow:hidden;text-overflow:ellipsis">poyachang1997@gmail.com</span><div class="avatar" id="userAvatar">P</div><button class="logout-btn" onclick="logout()">登出</button></div>
+<div class="user-info"><span id="userEmail" style="font-size:.7rem;max-width:110px;overflow:hidden;text-overflow:ellipsis">a0927471732@gmail.com</span><div class="avatar" id="userAvatar">A</div><button class="logout-btn" onclick="logout()">登出</button></div>
 </nav>
 
 <!-- PAGE: Voice (Home) -->
@@ -328,7 +329,7 @@ html{font-size:15px}body{font-family:var(--font);background:var(--bg);color:var(
 <script>
 // ★★★ 部署後修改 ★★★
 var API_URL='https://script.google.com/macros/s/AKfycbwF6ldhEVkVYv4OaFfMjpbbBB6RvkN7UBkKIJqEMLhDIY7gq_6eztM4w5SdgIoOw2_P/exec';
-var SECRET_KEY='jabez541010';
+// 密鑰已移至伺服器端，前端不再存放
 
 function $(id){return document.getElementById(id)}
 function showToast(msg){var t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2500)}
@@ -351,7 +352,7 @@ function gCNY(){return S&&S.cny||{enabled:false}}
 // === API ===
 function api(a,p){if(!API_URL)return Promise.resolve(demo(a,p));
 var emailToSend=(a==='auth'&&p&&p.email)?p.email:currentUser;
-var u=API_URL+'?action='+encodeURIComponent(a)+'&key='+encodeURIComponent(SECRET_KEY)+'&email='+encodeURIComponent(emailToSend);
+var u=API_URL+'?action='+encodeURIComponent(a)+'&email='+encodeURIComponent(emailToSend);
 if(p){Object.entries(p).forEach(function(e){if(e[0]!=='email'&&e[1]!=null)u+='&'+encodeURIComponent(e[0])+'='+encodeURIComponent(e[1])})}
 return new Promise(function(resolve){
   var cb='cb'+Date.now()+Math.floor(Math.random()*9999);
@@ -378,7 +379,7 @@ function lCalc(d){var rms=DS.rooms[d.building]||[],rm=rms.find(function(r){retur
 function lReport(y,m){var yn=+y,mn=+m,ms=new Date(yn,mn-1,1),me=new Date(yn,mn,1),tr=0,tb=0,td=0,dr=0,dp=0,rt={},bs={};Object.entries(DB).forEach(function(e){var bld=e[0],list=e[1],bR=0,bC=0;list.forEach(function(b){var ci=new Date(b['入住日期']),co=new Date(b['退房日期']);if(ci>=me||co<=ms)return;var rv=b['總金額']||0;tr+=rv;bR+=rv;bC++;tb++;var tk=(b['房型人數']||'?')+'人';if(!rt[tk])rt[tk]={revenue:0,bookings:0};rt[tk].revenue+=rv;rt[tk].bookings++;if(ci>=ms&&ci<me){var da=b['訂金金額']||0;td+=da;if(b['訂金狀態']==='已收')dr+=da;else dp+=da}});bs[bld]={revenue:bR,bookings:bC}});return{success:true,report:{year:yn,month:mn,totalRevenue:tr,totalBookings:tb,totalDeposit:td,depositReceived:dr,depositPending:dp,roomTypeStats:rt,buildingStats:bs}}}
 
 // === AUTH ===
-async function doLogin(){var em=$('loginEmail').value.trim().toLowerCase();if(!em){showToast('請輸入Email');return}$('loginBtn').disabled=true;var r=await api('auth',{email:em});$('loginBtn').disabled=false;if(r.success&&r.authorized){currentUser=em;localStorage.setItem('jbu',em);enter()}else{$('loginError').style.display='block';$('loginError').textContent='帳號未授權'}}
+async function doLogin(){var em=$('loginEmail').value.trim().toLowerCase();var pw=$('loginPassword').value.trim();if(!em||!pw){showToast('請輸入Email和密碼');return}$('loginBtn').disabled=true;var r=await api('auth',{email:em,password:pw});$('loginBtn').disabled=false;if(r.success&&r.authorized){currentUser=em;localStorage.setItem('jbu',em);enter()}else{$('loginError').style.display='block';$('loginError').textContent='帳號或密碼錯誤'}}
 function enter(){$('loginPage').style.display='none';$('mainApp').style.display='flex';$('userEmail').textContent=currentUser;$('userAvatar').textContent=currentUser[0].toUpperCase();
   // 登入後立即載入所有資料
   loadS().then(function(){updateRoomOpts();togglePkgDiscount();initCal();
@@ -653,7 +654,8 @@ try{var r=await api('saveSettings',{data:JSON.stringify(s)});if(r.success){S=s;i
 // === UTIL ===
 document.querySelectorAll('.modal-overlay').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o)o.classList.remove('active')})});
 $('dpOverlay').addEventListener('click',function(e){if(e.target===$('dpOverlay'))closeDatePicker()});
-$('loginEmail').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
+$('loginEmail').addEventListener('keydown',function(e){if(e.key==='Enter')$('loginPassword').focus()});
+$('loginPassword').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
 </script>
 
 
